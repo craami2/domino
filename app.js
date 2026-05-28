@@ -1,7 +1,7 @@
 // CONEXIÓN MAESTRA A SUPABASE
 const SUPABASE_URL = "https://cybkunnrqwilfzzyvrug.supabase.co";
-const SUPABASE_KEY = "sb_publishable_YJ1wN0a0R_5g_9Oj9DgwPQ_wCA3D4yv";
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5Ymt1bm5ycXdpbGZ6enl2cnVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5ODA5OTUsImV4cCI6MjA5NTU1Njk5NX0.nWdOVfjb_amwsvf0Fih-zpL8Ivc8zCijbNmRTwgoo-k";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ESTADO GLOBAL DEL JUEGO
 let myId = null;
@@ -46,7 +46,7 @@ async function createRoom() {
   currentRoomCode = generateRoomCode();
 
   // 1. Guardar la sala en Supabase
-  const { data: roomData, error: roomError } = await supabase
+  const { data: roomData, error: roomError } = await supabaseClient
     .from('rooms')
     .insert([{ room_code: currentRoomCode }])
     .select()
@@ -57,7 +57,7 @@ async function createRoom() {
   currentRoomId = roomData.id;
 
   // 2. Meterse como el jugador 1 (Host)
-  const { data: playerData, error: playerError } = await supabase
+  const { data: playerData, error: playerError } = await supabaseClient
     .from('players')
     .insert([{
       room_id: currentRoomId,
@@ -88,7 +88,7 @@ async function joinRoom() {
   myNickname = nicknameInput;
 
   // 1. Buscar si la sala existe
-  const { data: roomData, error: roomError } = await supabase
+  const { data: roomData, error: roomError } = await supabaseClient
     .from('rooms')
     .select('*')
     .eq('room_code', codeInput)
@@ -100,7 +100,7 @@ async function joinRoom() {
   currentRoomCode = codeInput;
 
   // 2. Ver cuántos jugadores hay para asignarle puesto automático libre
-  const { data: existingPlayers } = await supabase
+  const { data: existingPlayers } = await supabaseClient
     .from('players')
     .select('seat_position')
     .eq('room_id', currentRoomId);
@@ -118,7 +118,7 @@ async function joinRoom() {
   }
 
   // 3. Insertar al nuevo jugador
-  const { data: playerData, error: playerError } = await supabase
+  const { data: playerData, error: playerError } = await supabaseClient
     .from('players')
     .insert([{
       room_id: currentRoomId,
@@ -155,7 +155,7 @@ function listenToPlayersChanges() {
   fetchPlayers();
 
   // Suscribirse a cambios en la tabla 'players' usando el Realtime de Supabase
-  supabase
+  supabaseClient
     .channel(`room-${currentRoomId}`)
     .on('postgres_changes', { event: '*', filter: `room_id=eq.${currentRoomId}`, schema: 'public', table: 'players' }, () => {
       fetchPlayers(); // Si alguien entra, sale o se mueve, recargamos la lista automáticamente
@@ -165,7 +165,7 @@ function listenToPlayersChanges() {
 
 // TRAER LISTA ACTUALIZADA DE JUGADORES
 async function fetchPlayers() {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('players')
     .select('*')
     .eq('room_id', currentRoomId)
@@ -241,12 +241,12 @@ async function movePlayer(playerId, currentSeat, direction) {
 
   if (playerInTarget) {
     // Intercambio de puestos seguro en Supabase
-    await supabase.from('players').update({ seat_position: 0 }).eq('id', playerInTarget.id); // Puesto temporal para evitar choque único
-    await supabase.from('players').update({ seat_position: targetSeat }).eq('id', playerId);
-    await supabase.from('players').update({ seat_position: currentSeat }).eq('id', playerInTarget.id);
+    await supabaseClient.from('players').update({ seat_position: 0 }).eq('id', playerInTarget.id); // Puesto temporal para evitar choque único
+    await supabaseClient.from('players').update({ seat_position: targetSeat }).eq('id', playerId);
+    await supabaseClient.from('players').update({ seat_position: currentSeat }).eq('id', playerInTarget.id);
   } else {
     // Si el puesto está libre, simplemente lo movemos
-    await supabase.from('players').update({ seat_position: targetSeat }).eq('id', playerId);
+    await supabaseClient.from('players').update({ seat_position: targetSeat }).eq('id', playerId);
   }
   // El Realtime detectará esto y redibujará las parejas para todos los conectados al instante.
 }
