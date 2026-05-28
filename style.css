@@ -1,19 +1,109 @@
-body {
-  background-color: #0b0f19;
-  color: #f3f4f6;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+/* --- CONFIGURACIÓN BASE --- */
+*, ::before, ::after { box-sizing: border-box; }
+
+/* --- CONTENEDOR DE FICHAS --- */
+#my-hand {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
 }
 
-/* Animación suave para cuando muevas a los jugadores de puesto */
-.player-slot {
-  transition: all 0.3s ease-in-out;
+/* --- FICHA DE DOMINÓ --- */
+.ficha-domino {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 54px !important;
+  height: 98px !important;
+  background: #ffffff !important;
+  border: 1px solid #000000 !important;
+  border-radius: 8px !important;
+  position: relative !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+  cursor: grab;
 }
 
-/* Estilo para simular una ficha de dominó */
-.domino-tile {
-  aspect-ratio: 1 / 2;
-  border: 2px solid #374151;
-  background: #ffffff;
-  color: #000000;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+.ficha-domino:active {
+  cursor: grabbing;
+}
+
+/* --- SISTEMA DE PUNTOS --- */
+.mitad-puntos {
+  position: relative !important;
+  width: 54px !important;
+  height: 48px !important;
+  display: block !important;
+  flex: none !important;
+}
+
+.punto {
+  position: absolute !important;
+  width: 9px !important;
+  height: 9px !important;
+  background-color: #000000 !important;
+  border-radius: 50% !important;
+  opacity: 0;
+  pointer-events: none !important;
+}
+
+/* COORDENADAS FIJAS */
+.pt-1 { top: 6px; left: 8px; }
+.pt-2 { top: 6px; left: 22.5px; }
+.pt-3 { top: 6px; right: 8px; }
+.pt-4 { top: 20px; left: 8px; }
+.pt-5 { top: 20px; left: 22.5px; }
+.pt-6 { top: 20px; right: 8px; }
+.pt-7 { bottom: 6px; left: 8px; }
+.pt-8 { bottom: 6px; left: 22.5px; }
+.pt-9 { bottom: 6px; right: 8px; }
+
+/* ACTIVACIÓN DE PUNTOS */
+.p1 .pt-5 { opacity: 1; }
+.p2 .pt-3, .p2 .pt-7 { opacity: 1; }
+.p3 .pt-1, .p3 .pt-5, .p3 .pt-9 { opacity: 1; }
+.p4 .pt-1, .p4 .pt-3, .p4 .pt-7, .p4 .pt-9 { opacity: 1; }
+.p5 .pt-1, .p5 .pt-3, .p5 .pt-5, .p5 .pt-7, .p5 .pt-9 { opacity: 1; }
+.p6 .pt-1, .p6 .pt-3, .p6 .pt-4, .p6 .pt-6, .p6 .pt-7, .p6 .pt-9 { opacity: 1; }
+
+.linea-central {
+  width: 100% !important;
+  height: 2px !important;
+  background: #000000 !important;
+  flex: none !important;
+}
+
+/* --- ANIMACIONES --- */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* --- SCROLLBAR PERSONALIZADA --- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
 }
