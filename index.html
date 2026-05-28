@@ -4,13 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Domino Amigos 🎲</title>
-  <!-- Tailwind CSS para diseño rápido y bonito -->
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-[#0b0f19] text-gray-100 min-h-screen flex flex-col justify-between antialiased">
 
-  <!-- PANTALLA 1: LOGIN / INICIO -->
   <div id="screen-login" class="flex-1 flex items-center justify-center p-4">
     <div class="bg-[#111827] border border-gray-800 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
       <h1 class="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent mb-2">DOMINÓ</h1>
@@ -42,7 +40,6 @@
     </div>
   </div>
 
-  <!-- PANTALLA 2: LOBBY / SALA DE ESPERA PRIVADA -->
   <div id="screen-lobby" class="hidden flex-1 flex items-center justify-center p-4">
     <div class="bg-[#111827] border border-gray-800 p-8 rounded-2xl shadow-2xl max-w-md w-full">
       <div class="text-center mb-6">
@@ -54,12 +51,27 @@
         </div>
       </div>
 
-      <!-- LISTA DE JUGADORES Y CONFIGURACIÓN DE PAREJAS -->
+      <div id="host-settings" class="hidden p-4 mb-4 bg-gray-800/40 border border-gray-800 rounded-xl">
+        <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">⚙️ Configuración de Sala</h3>
+        <div class="flex items-center justify-between">
+          <label class="text-xs text-gray-400">Límite de puntos para ganar:</label>
+          <select id="select-max-points" class="bg-[#1f2937] border border-gray-700 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-indigo-500 cursor-pointer">
+            <option value="50">50 puntos (Partida Rápida)</option>
+            <option value="100" selected>100 puntos (Estándar)</option>
+            <option value="200">200 puntos (Modo Largo)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="player-settings-view" class="p-3 mb-4 bg-gray-900/40 border border-gray-800 rounded-xl text-xs text-gray-400 flex justify-between items-center">
+        <span class="flex items-center gap-1">🎯 Objetivo de la partida:</span>
+        <span id="text-max-points" class="font-bold text-indigo-400 bg-indigo-950/40 px-2 py-0.5 border border-indigo-900/60 rounded">100 puntos</span>
+      </div>
+
       <div class="space-y-3 mb-6">
         <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Posiciones en la mesa (Parejas: 1-3 y 2-4)</label>
         <div id="lobby-players-list" class="space-y-2">
-          <!-- Los jugadores se renderizan aquí dinámicamente -->
-        </div>
+          </div>
       </div>
 
       <button id="btn-start-game" class="hidden w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer shadow-lg shadow-emerald-600/20">
@@ -69,9 +81,7 @@
     </div>
   </div>
 
-  <!-- PANTALLA 3: MESA DE JUEGO -->
   <div id="screen-game" class="hidden flex-1 flex flex-col p-4">
-    <!-- Barra Superior: Turno y Temporizador de 1 min -->
     <div class="bg-[#111827] border border-gray-800 rounded-xl p-4 flex justify-between items-center mb-4 max-w-4xl w-full mx-auto">
       <div>
         <p class="text-xs text-gray-400 uppercase font-bold tracking-wider">Turno actual de:</p>
@@ -89,19 +99,16 @@
       </div>
     </div>
 
-    <!-- Tablero Central -->
     <div class="flex-1 border border-dashed border-gray-800 rounded-2xl flex items-center justify-center p-4 relative max-w-4xl w-full mx-auto bg-[#0d1321]">
       <div id="domino-board-center" class="text-gray-600 text-sm italic">
         La mesa está limpia. Coloca la primera ficha.
       </div>
     </div>
 
-    <!-- Panel de Abajo: Tus fichas -->
     <div class="bg-[#111827] border border-gray-800 rounded-2xl p-6 mt-4 max-w-4xl w-full mx-auto">
       <p class="text-xs text-gray-400 uppercase font-bold tracking-wider mb-3 text-center">Tus Fichas en Mano</p>
       <div id="my-hand" class="flex justify-center items-center gap-3 overflow-x-auto py-2">
-        <!-- Las fichas aparecerán aquí -->
-      </div>
+        </div>
     </div>
   </div>
 
@@ -109,9 +116,7 @@
     Domino Online — Hecho para jugar fácil entre amigos.
   </footer>
 
-  <!-- Script de Conexión a Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- Tu archivo de lógica de juego -->
   <script src="app.js"></script>
 </body>
-</html> 
+</html>
