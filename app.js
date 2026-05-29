@@ -616,9 +616,42 @@ async function playBotTurnIfNeeded() {
   }, 700);
 }
 
-function listenToPlayersChanges() {
-  fetchPlayers();
-  fetchRoomRules();
+async function listenToPlayersChanges() {
+  // 1. PRIMERO obligamos a que espere y traiga a los jugadores
+  await fetchPlayers(); 
+  
+  // 2. LUEGO traemos las reglas y el turno actual
+  async function fetchRoomRules() {
+  const { data, error } = await supabaseClient
+    .from('rooms')
+    .select('max_points, current_turn_seat')
+    .eq('id', currentRoomId)
+    .single();
+
+  if (!error && data) {
+    maxPoints = data.max_points;
+    const ruleBadge = document.getElementById('text-max-points');
+    if (ruleBadge) ruleBadge.innerText = `${maxPoints} pts`;
+    
+    // Aquí actualizamos visualmente el turno
+    const jugadorActual = playersList.find(p => p.seat_position === data.current_turn_seat);
+    const turnDisplay = document.getElementById('current-turn-player');
+    
+    if (turnDisplay) {
+      if (jugadorActual) {
+        if (jugadorActual.id === myId) {
+          turnDisplay.innerText = "¡Tu Turno! 🫵";
+          turnDisplay.classList.add('text-emerald-400'); // Un toque visual opcional
+        } else {
+          turnDisplay.innerText = `${jugadorActual.nickname} (Asiento ${data.current_turn_seat})`;
+          turnDisplay.classList.remove('text-emerald-400');
+        }
+      } else {
+        turnDisplay.innerText = "Calculando...";
+      }
+    }
+  }
+}
 
   supabaseClient
     .channel(`room-${currentRoomId}`)
