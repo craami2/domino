@@ -17,6 +17,12 @@ let roomStatus = "LOBBY";
 let lastRoomSnapshot = null;
 let isBotThinking = false;
 let screenLogin, screenLobby, screenGame;
+let draggedTileData = null;   // Variable para fallback del drag & drop
+
+// --- VARIABLES GLOBALES PARA LA MESA ---
+let currentLeftEnd = null;
+let currentRightEnd = null;
+let boardState = [];
 
 window.addEventListener('DOMContentLoaded', async () => {
   screenLogin = document.getElementById('screen-login');
@@ -32,9 +38,9 @@ window.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log("✅ Supabase inicializado correctamente");
   } catch (err) {
     console.error(err);
-    showNiceAlert("No se pudo inicializar Supabase.");
   }
 });
 
@@ -49,14 +55,18 @@ function setupEventListeners() {
 
   const dropZone = document.getElementById('drop-zone-mesa');
   if (dropZone) {
+    console.log("✅ Zona de mesa encontrada. Eventos Drag & Drop activados.");
     dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
-      dropZone.classList.add('bg-emerald-500/10', 'border-emerald-400');
+      e.dataTransfer.dropEffect = 'move';
+      dropZone.classList.add('bg-emerald-500/10', 'border-emerald-400', 'drag-over');
     });
     dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('bg-emerald-500/10', 'border-emerald-400');
+      dropZone.classList.remove('bg-emerald-500/10', 'border-emerald-400', 'drag-over');
     });
     dropZone.addEventListener('drop', handleFichaDrop);
+  } else {
+    console.error("❌ ERROR: No se encontró el elemento 'drop-zone-mesa'.");
   }
 }
 
@@ -94,19 +104,16 @@ function generateRoomCode() {
 }
 
 function obtenerSiguienteAsiento(asientoActual) {
-  let siguienteAsiento = asientoActual - 1;
-  if (siguienteAsiento < 1) siguienteAsiento = 4;
+  let siguienteAsiento = asientoActual + 1;
+  if (siguienteAsiento > 4) siguienteAsiento = 1;
   return siguienteAsiento;
 }
 
 function getDominoDotMap(value) {
   const maps = {
     0: [],
-    1: [5],
-    2: [3, 7],
-    3: [1, 5, 9],
-    4: [1, 3, 7, 9],
-    5: [1, 3, 5, 7, 9],
+    1: [5], 2: [3, 7], 3: [1, 5, 9],
+    4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9],
     6: [1, 3, 4, 6, 7, 9]
   };
   return maps[value] || [];
@@ -137,13 +144,122 @@ function createDominoSVG(top, bottom) {
   `;
 }
 
-function renderDominoTile(values, rotated = false, extraClass = "") {
-  return `
-    <div class="ficha-domino ${rotated ? 'ficha-rotada' : ''} ${extraClass}">
-      ${createDominoSVG(values[0], values[1])}
-    </div>
-  `;
+// --- VALIDACIÓN DE JUGADAS ---
+function validatePlay(ficha, leftEnd, rightEnd) {
+  if (leftEnd === null && rightEnd === null) {
+    return { isValid: true, newLeft: ficha[0], newRight: ficha[1] };
+  }
+  if (ficha[0] === leftEnd) return { isValid: true, newLeft: ficha[1], newRight: rightEnd };
+  if (ficha[1] === leftEnd) return { isValid: true, newLeft: ficha[0], newRight: rightEnd };
+  if (ficha[0] === rightEnd) return { isValid: true, newLeft: leftEnd, newRight: ficha[1] };
+  if (ficha[1] === rightEnd) return { isValid: true, newLeft: leftEnd, newRight: ficha[0] };
+  return { isValid: false };
 }
+
+// =====================================================
+//  HANDLEFICHADROP CORREGIDO (con fallback)
+// =====================================================
+async function handleFichaDrop(e) {
+  e.preventDefault();
+  console.log("📥 Soltando ficha en la mesa...");
+
+  const dropZone = document.getElementById('drop-zone-mesa');
+  if (!dropZone) return;
+  dropZone.classList.remove('bg-emerald-500/10', 'border-emerald-400', 'drag-over');
+
+  const me = playersList.find(p => p.id === myId);
+  if (!me || !Array.isArray(me.hand)) return;
+
+  const { data: currentRoom, error: roomErr } = await supabaseClient
+    .from('rooms')
+    .select('*')
+    .eq('id', currentRoomId)
+    .single();
+
+  if (roomErr || !currentRoom) return showNiceAlert("No se pudo leer la sala.");
+  console.log("📊 Estado de la sala validado:", currentRoom.status);
+
+  if (currentRoom.status !== 'PLAYING') return showNiceAlert("La partida no ha comenzado.");
+  if (currentRoom.current_turn_seat !== me.seat_position) return showNiceAlert("¡No es tu turno!");
+
+  try {
+    let dataString = e.dataTransfer.getData('text/plain');
+
+    if (!dataString && draggedTileData) {
+      dataString = draggedTileData;
+    }
+
+    if (!dataString) {
+      console.error("❌ El navegador bloqueó los datos de la ficha.");
+      showNiceAlert("Error: No se pudo leer la ficha. Intenta de nuevo.");
+      draggedTileData = null;
+      return;
+    }
+
+    draggedTileData = null;
+
+    let data;
+    try {
+      data = JSON.parse(dataString);
+    } catch {
+      showNiceAlert("Error al leer la ficha arrastrada.");
+      return;
+    }
+
+    const fichaJugada = data.values;
+    console.log("✅ Ficha recibida:", fichaJugada);
+
+    const validation = validatePlay(fichaJugada, currentRoom.left_end, currentRoom.right_end);
+    if (!validation.isValid) {
+      return showNiceAlert(`Ficha inválida. Necesitas un ${currentRoom.left_end} o ${currentRoom.right_end}.`);
+    }
+
+    const updatedHand = me.hand.filter((_, idx) => idx !== data.index);
+    await supabaseClient.from('players').update({ hand: updatedHand }).eq('id', myId);
+
+    let newBoard = currentRoom.board || [];
+    newBoard.push(fichaJugada);
+
+    const siguienteAsiento = obtenerSiguienteAsiento(me.seat_position);
+
+        // ... (todo el código de validación y actualización queda igual hasta aquí)
+
+    await supabaseClient.from('rooms').update({ 
+      board: newBoard,
+      left_end: validation.newLeft,
+      right_end: validation.newRight,
+      current_turn_seat: siguienteAsiento 
+    }).eq('id', currentRoomId);
+
+    handRotations = {};
+
+    // === ACTUALIZACIÓN INMEDIATA DEL TABLERO (para que se vea al instante) ===
+    boardState = newBoard;
+    currentLeftEnd = validation.newLeft;
+    currentRightEnd = validation.newRight;
+    renderBoard();                    // ← Esto hace que aparezca la ficha ya
+
+    if (updatedHand.length === 0) {
+      await supabaseClient.from('rooms').update({ 
+        status: 'FINISHED', 
+        winner_seat: me.seat_position 
+      }).eq('id', currentRoomId);
+      clearInterval(timerInterval);
+      showNiceAlert(`🎉 ¡${me.nickname} ganó la partida!`);
+    }
+
+    await fetchPlayers();
+    startTurnTimer();
+
+  } catch (err) {
+    console.error("❌ Error al jugar la ficha:", err);
+    showNiceAlert("Error al procesar la jugada.");
+  }
+}
+
+// =====================================================
+//  RESTO DEL CÓDIGO (sin cambios mayores)
+// =====================================================
 
 async function createRoom() {
   if (!supabaseClient) return showNiceAlert("Supabase no está listo.");
@@ -159,7 +275,15 @@ async function createRoom() {
   try {
     const { data: roomData, error: roomError } = await supabaseClient
       .from('rooms')
-      .insert([{ room_code: currentRoomCode, max_points: maxPoints, current_turn_seat: 1, status: 'LOBBY' }])
+      .insert([{
+        room_code: currentRoomCode,
+        max_points: maxPoints,
+        current_turn_seat: 1,
+        status: 'LOBBY',
+        board: [],
+        left_end: null,
+        right_end: null
+      }])
       .select()
       .single();
 
@@ -251,7 +375,15 @@ function showLobbyScreen() {
   if (screenLobby) screenLobby.classList.remove('hidden');
 
   const codeDisplay = document.getElementById('display-room-code');
-  if (codeDisplay) codeDisplay.innerText = currentRoomCode;
+  if (codeDisplay) {
+    codeDisplay.innerText = currentRoomCode;
+    codeDisplay.style.cursor = "pointer";
+    codeDisplay.onclick = () => {
+      navigator.clipboard.writeText(currentRoomCode).then(() => {
+        showNiceAlert("¡Código copiado al portapapeles! 📋");
+      }).catch(err => console.error("No se pudo copiar: ", err));
+    };
+  }
 
   const hostSettings = document.getElementById('host-settings');
   const startGameBtn = document.getElementById('btn-start-game');
@@ -313,7 +445,7 @@ async function updateRoomRules(e) {
 async function fetchRoomRules() {
   const { data, error } = await supabaseClient
     .from('rooms')
-    .select('max_points, current_turn_seat, status, winner_seat')
+    .select('*')
     .eq('id', currentRoomId)
     .single();
 
@@ -322,6 +454,12 @@ async function fetchRoomRules() {
     currentTurnSeat = data.current_turn_seat;
     roomStatus = data.status;
     lastRoomSnapshot = data;
+
+    boardState = data.board || [];
+    currentLeftEnd = data.left_end;
+    currentRightEnd = data.right_end;
+
+    renderBoard();
 
     const ruleBadge = document.getElementById('text-max-points');
     if (ruleBadge) ruleBadge.innerText = `${maxPoints} pts`;
@@ -333,36 +471,103 @@ async function fetchRoomRules() {
     const jugadorActual = playersList.find(p => p.seat_position === currentTurnSeat);
     const turnDisplay = document.getElementById('current-turn-player');
     if (turnDisplay) {
-      turnDisplay.innerText = jugadorActual
-        ? (jugadorActual.id === myId ? "¡Tu turno! 🫵" : `${jugadorActual.nickname} (Asiento ${currentTurnSeat})`)
-        : "Calculando...";
+      if (jugadorActual) {
+        if (jugadorActual.id === myId) {
+          turnDisplay.innerText = "¡Tu Turno! 🫵";
+          turnDisplay.classList.add('text-emerald-400');
+        } else {
+          turnDisplay.innerText = `${jugadorActual.nickname} (Asiento ${currentTurnSeat})`;
+          turnDisplay.classList.remove('text-emerald-400');
+        }
+      } else {
+        turnDisplay.innerText = "Calculando...";
+      }
     }
   }
 }
 
+function renderBoard() {
+  const dropZone = document.getElementById('drop-zone-mesa');
+  const placeholder = document.getElementById('placeholder-mesa');
+  if (!dropZone) return;
+
+  if (boardState.length > 0 && placeholder) placeholder.classList.add('hidden');
+  else if (placeholder) placeholder.classList.remove('hidden');
+
+  Array.from(dropZone.children).forEach(child => {
+    if (child.id !== 'placeholder-mesa') dropZone.removeChild(child);
+  });
+
+  boardState.forEach(ficha => {
+    const fichaDiv = document.createElement('div');
+    fichaDiv.className = "ficha-domino inline-block mx-1 mb-2";
+    fichaDiv.style.transform = "scale(0.8)";
+    fichaDiv.innerHTML = createDominoSVG(ficha[0], ficha[1]);
+    dropZone.appendChild(fichaDiv);
+  });
+}
+
 async function startGame() {
-  if (playersList.length < 4) return showNiceAlert("Necesitas 4 jugadores para iniciar.");
-  let pool = [];
-  for (let i = 0; i <= 6; i++) {
-    for (let j = i; j <= 6; j++) pool.push([i, j]);
-  }
+  console.log("🟢 [1] Botón 'Comenzar Partida' fue clickeado");
 
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
+  if (!isHost) return showNiceAlert("Solo el host puede comenzar la partida.");
 
-  let asientoConDobleSeis = 1;
-  for (let i = 1; i <= 4; i++) {
-    const player = playersList.find(p => p.seat_position === i);
-    if (!player) continue;
-    const hand = pool.splice(0, 7);
-    if (hand.some(f => f[0] === 6 && f[1] === 6)) asientoConDobleSeis = i;
-    await supabaseClient.from('players').update({ hand }).eq('id', player.id);
-  }
-
-  await supabaseClient.from('rooms').update({ status: 'PLAYING', current_turn_seat: asientoConDobleSeis }).eq('id', currentRoomId);
   await fetchPlayers();
+
+  if (playersList.length < 4) {
+    return showNiceAlert(`Necesitas 4 jugadores. Actualmente hay ${playersList.length}.`);
+  }
+
+  const seats = playersList.map(p => p.seat_position);
+  if (new Set(seats).size !== 4) {
+    return showNiceAlert("Hay asientos duplicados o vacíos. Arregla las posiciones.");
+  }
+
+  try {
+    let pool = [];
+    for (let i = 0; i <= 6; i++) {
+      for (let j = i; j <= 6; j++) pool.push([i, j]);
+    }
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    let asientoConDobleSeis = 1;
+
+    for (let i = 1; i <= 4; i++) {
+      const player = playersList.find(p => p.seat_position === i);
+      if (!player) continue;
+
+      const hand = pool.splice(0, 7);
+      if (hand.some(f => f[0] === 6 && f[1] === 6)) asientoConDobleSeis = i;
+
+      await supabaseClient.from('players').update({ hand }).eq('id', player.id);
+    }
+
+    const { error } = await supabaseClient.from('rooms').update({
+      status: 'PLAYING',
+      current_turn_seat: asientoConDobleSeis,
+      board: [],
+      left_end: null,
+      right_end: null
+    }).eq('id', currentRoomId);
+
+    if (error) {
+      console.error(error);
+      return showNiceAlert("Error al comenzar: " + error.message);
+    }
+
+    console.log("✅ Partida iniciada. Cambiando a pantalla de juego...");
+    await fetchPlayers();
+    showGameScreen();
+    startTurnTimer();
+    playBotTurnIfNeeded();
+
+  } catch (err) {
+    console.error("❌ Error grave:", err);
+    showNiceAlert("Error al comenzar la partida.");
+  }
 }
 
 function showGameScreen() {
@@ -395,13 +600,13 @@ function renderTableLayout() {
   const n3 = document.getElementById('name-player-3');
   const n4 = document.getElementById('name-player-4');
 
-  if (n2) n2.innerText = playerLeft ? `${playerLeft.nickname}` : "Puesto Vacío";
+  if (n2) n2.innerText = playerLeft ? playerLeft.nickname : "Puesto Vacío";
   if (n3) n3.innerText = playerFacing ? `${playerFacing.nickname} (Pareja)` : "Pareja Vacía";
-  if (n4) n4.innerText = playerRight ? `${playerRight.nickname}` : "Puesto Vacío";
+  if (n4) n4.innerText = playerRight ? playerRight.nickname : "Puesto Vacío";
 
-  renderOpaqueOpponentHand('hand-player-2', playerLeft?.hand?.length || (playerLeft ? 7 : 0), 'vertical');
-  renderOpaqueOpponentHand('hand-player-3', playerFacing?.hand?.length || (playerFacing ? 7 : 0), 'horizontal');
-  renderOpaqueOpponentHand('hand-player-4', playerRight?.hand?.length || (playerRight ? 7 : 0), 'vertical');
+  renderOpaqueOpponentHand('hand-player-2', playerLeft?.hand?.length || 0, 'vertical');
+  renderOpaqueOpponentHand('hand-player-3', playerFacing?.hand?.length || 0, 'horizontal');
+  renderOpaqueOpponentHand('hand-player-4', playerRight?.hand?.length || 0, 'vertical');
 
   renderMyHandPremium(me);
 }
@@ -412,48 +617,10 @@ function renderOpaqueOpponentHand(containerId, count, orientation) {
   container.innerHTML = "";
   for (let i = 0; i < count; i++) {
     const closed = document.createElement('div');
-    closed.className = orientation === 'vertical' ? "ficha-domino" : "ficha-domino";
+    closed.className = "ficha-domino";
     closed.innerHTML = createDominoSVG(0, 0);
     container.appendChild(closed);
   }
-}
-
-function getDominoDotMap(value) {
-  const maps = {
-    0: [],
-    1: [5],
-    2: [3, 7],
-    3: [1, 5, 9],
-    4: [1, 3, 7, 9],
-    5: [1, 3, 5, 7, 9],
-    6: [1, 3, 4, 6, 7, 9]
-  };
-  return maps[value] || [];
-}
-
-function createDominoSVG(top, bottom) {
-  const topDots = getDominoDotMap(top);
-  const bottomDots = getDominoDotMap(bottom);
-
-  const dotPositions = {
-    1: [18, 18], 2: [50, 18], 3: [82, 18],
-    4: [18, 44], 5: [50, 44], 6: [82, 44],
-    7: [18, 70], 8: [50, 70], 9: [82, 70]
-  };
-
-  const dotsMarkup = (dots, offsetY) => dots.map(n => {
-    const [x, y] = dotPositions[n];
-    return `<circle cx="${x}" cy="${y + offsetY}" r="7.5" fill="#111111"></circle>`;
-  }).join('');
-
-  return `
-    <svg viewBox="0 0 100 200" preserveAspectRatio="none" aria-hidden="true">
-      <rect x="1" y="1" width="98" height="198" rx="12" ry="12" fill="#ffffff" stroke="#111111" stroke-width="2"/>
-      <line x1="12" y1="100" x2="88" y2="100" stroke="#111111" stroke-width="2"/>
-      ${dotsMarkup(topDots, 0)}
-      ${dotsMarkup(bottomDots, 100)}
-    </svg>
-  `;
 }
 
 function renderMyHandPremium(myData) {
@@ -467,7 +634,7 @@ function renderMyHandPremium(myData) {
 
     const fichaDiv = document.createElement('div');
     fichaDiv.setAttribute('draggable', 'true');
-    fichaDiv.className = "ficha-domino";
+    fichaDiv.className = "ficha-domino cursor-grab active:cursor-grabbing";
     if (currentRotation === 180) fichaDiv.classList.add('ficha-rotada');
     fichaDiv.innerHTML = createDominoSVG(ficha[0], ficha[1]);
 
@@ -479,79 +646,33 @@ function renderMyHandPremium(myData) {
 
     fichaDiv.addEventListener('dragstart', (e) => {
       fichaDiv.classList.add('opacity-40');
-      e.dataTransfer.setData('text/plain', JSON.stringify({ index, values: ficha, rotation: currentRotation }));
-    });
 
-    fichaDiv.addEventListener('dragend', () => {
-      fichaDiv.classList.remove('opacity-40');
+      const payload = JSON.stringify({
+        index,
+        values: ficha,
+        rotation: currentRotation
+      });
+
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', payload);
+      draggedTileData = payload;
+
+      console.log("📤 Arrastrando ficha:", payload);
     });
 
     handContainer.appendChild(fichaDiv);
   });
 }
 
-async function handleFichaDrop(e) {
-  e.preventDefault();
-  const dropZone = document.getElementById('drop-zone-mesa');
-  if (!dropZone) return;
-  dropZone.classList.remove('bg-emerald-500/10', 'border-emerald-400');
-
-  const me = playersList.find(p => p.id === myId);
-  if (!me || !Array.isArray(me.hand)) return;
-
-  const { data: currentRoom, error: roomErr } = await supabaseClient
-    .from('rooms')
-    .select('current_turn_seat, status')
-    .eq('id', currentRoomId)
-    .single();
-
-  if (roomErr || !currentRoom) return showNiceAlert("No se pudo leer la sala.");
-  if (currentRoom.status !== 'PLAYING') return showNiceAlert("La partida no ha comenzado.");
-  if (currentRoom.current_turn_seat !== me.seat_position) return showNiceAlert("¡No es tu turno!");
-
-  try {
-    const dataString = e.dataTransfer.getData('text/plain');
-    if (!dataString) return;
-    const data = JSON.parse(dataString);
-
-    const placeholder = document.getElementById('placeholder-mesa');
-    if (placeholder) placeholder.classList.add('hidden');
-
-    const playedCard = document.createElement('div');
-    playedCard.className = "ficha-domino";
-    if (data.rotation === 180) playedCard.classList.add('ficha-rotada');
-    playedCard.innerHTML = createDominoSVG(data.values[0], data.values[1]);
-    dropZone.appendChild(playedCard);
-
-    const updatedHand = me.hand.filter((_, idx) => idx !== data.index);
-    await supabaseClient.from('players').update({ hand: updatedHand }).eq('id', myId);
-
-    const siguienteAsiento = obtenerSiguienteAsiento(me.seat_position);
-    await supabaseClient.from('rooms').update({ current_turn_seat: siguienteAsiento }).eq('id', currentRoomId);
-
-    handRotations = {};
-
-    if (updatedHand.length === 0) {
-      await supabaseClient.from('rooms').update({ status: 'FINISHED', winner_seat: me.seat_position }).eq('id', currentRoomId);
-      clearInterval(timerInterval);
-      showNiceAlert(`🎉 ¡${me.nickname} ganó la partida!`);
-      await fetchPlayers();
-      return;
-    }
-
-    await fetchPlayers();
-    renderTableLayout();
-    startTurnTimer();
-  } catch (err) {
-    console.error(err);
-    showNiceAlert("Error al jugar la ficha.");
-  }
-}
-
-function getPlayableBotMove(bot) {
+function getPlayableBotMove(bot, leftEnd, rightEnd) {
   if (!bot || !Array.isArray(bot.hand)) return null;
-  const idx = Math.floor(Math.random() * bot.hand.length);
-  return { index: idx, values: bot.hand[idx], rotation: 0 };
+  for (let i = 0; i < bot.hand.length; i++) {
+    const validation = validatePlay(bot.hand[i], leftEnd, rightEnd);
+    if (validation.isValid) {
+      return { index: i, values: bot.hand[i], validation };
+    }
+  }
+  return null;
 }
 
 async function playBotTurnIfNeeded() {
@@ -568,6 +689,13 @@ async function playBotTurnIfNeeded() {
   setTimeout(async () => {
     try {
       await fetchPlayers();
+
+      const { data: currentRoom } = await supabaseClient
+        .from('rooms')
+        .select('*')
+        .eq('id', currentRoomId)
+        .single();
+
       const bot = playersList.find(p => p.id === currentPlayer.id);
       if (!bot || !Array.isArray(bot.hand) || bot.hand.length === 0) {
         const nextSeat = obtenerSiguienteAsiento(bot?.seat_position || currentTurnSeat);
@@ -576,8 +704,11 @@ async function playBotTurnIfNeeded() {
         return;
       }
 
-      const move = getPlayableBotMove(bot);
+      const move = getPlayableBotMove(bot, currentRoom.left_end, currentRoom.right_end);
       if (!move) {
+        showNiceAlert(`${bot.nickname} dice: ¡Paso! ✊`);
+        const nextSeat = obtenerSiguienteAsiento(bot.seat_position);
+        await supabaseClient.from('rooms').update({ current_turn_seat: nextSeat }).eq('id', currentRoomId);
         isBotThinking = false;
         return;
       }
@@ -585,73 +716,41 @@ async function playBotTurnIfNeeded() {
       const updatedHand = bot.hand.filter((_, idx) => idx !== move.index);
       await supabaseClient.from('players').update({ hand: updatedHand }).eq('id', bot.id);
 
-      const mesa = document.getElementById('drop-zone-mesa');
-      const placeholder = document.getElementById('placeholder-mesa');
-      if (placeholder) placeholder.classList.add('hidden');
-      if (mesa) {
-        const playedCard = document.createElement('div');
-        playedCard.className = "ficha-domino";
-        playedCard.innerHTML = createDominoSVG(move.values[0], move.values[1]);
-        mesa.appendChild(playedCard);
-      }
+      let newBoard = currentRoom.board || [];
+      newBoard.push(move.values);
+
+      const nextSeat = obtenerSiguienteAsiento(bot.seat_position);
+
+      await supabaseClient.from('rooms').update({
+        board: newBoard,
+        left_end: move.validation.newLeft,
+        right_end: move.validation.newRight,
+        current_turn_seat: nextSeat
+      }).eq('id', currentRoomId);
 
       if (updatedHand.length === 0) {
-        await supabaseClient.from('rooms').update({ status: 'FINISHED', winner_seat: bot.seat_position }).eq('id', currentRoomId);
+        await supabaseClient.from('rooms').update({
+          status: 'FINISHED',
+          winner_seat: bot.seat_position
+        }).eq('id', currentRoomId);
         clearInterval(timerInterval);
         showNiceAlert(`🏆 Ganó ${bot.nickname}`);
         isBotThinking = false;
         return;
       }
 
-      const nextSeat = obtenerSiguienteAsiento(bot.seat_position);
-      await supabaseClient.from('rooms').update({ current_turn_seat: nextSeat }).eq('id', currentRoomId);
       await fetchPlayers();
-      renderTableLayout();
       startTurnTimer();
     } catch (err) {
       console.error(err);
     } finally {
       isBotThinking = false;
     }
-  }, 700);
+  }, 1500);
 }
 
 async function listenToPlayersChanges() {
-  // 1. PRIMERO obligamos a que espere y traiga a los jugadores
-  await fetchPlayers(); 
-  
-  // 2. LUEGO traemos las reglas y el turno actual
-  async function fetchRoomRules() {
-  const { data, error } = await supabaseClient
-    .from('rooms')
-    .select('max_points, current_turn_seat')
-    .eq('id', currentRoomId)
-    .single();
-
-  if (!error && data) {
-    maxPoints = data.max_points;
-    const ruleBadge = document.getElementById('text-max-points');
-    if (ruleBadge) ruleBadge.innerText = `${maxPoints} pts`;
-    
-    // Aquí actualizamos visualmente el turno
-    const jugadorActual = playersList.find(p => p.seat_position === data.current_turn_seat);
-    const turnDisplay = document.getElementById('current-turn-player');
-    
-    if (turnDisplay) {
-      if (jugadorActual) {
-        if (jugadorActual.id === myId) {
-          turnDisplay.innerText = "¡Tu Turno! 🫵";
-          turnDisplay.classList.add('text-emerald-400'); // Un toque visual opcional
-        } else {
-          turnDisplay.innerText = `${jugadorActual.nickname} (Asiento ${data.current_turn_seat})`;
-          turnDisplay.classList.remove('text-emerald-400');
-        }
-      } else {
-        turnDisplay.innerText = "Calculando...";
-      }
-    }
-  }
-}
+  await fetchPlayers();
 
   supabaseClient
     .channel(`room-${currentRoomId}`)
@@ -660,9 +759,7 @@ async function listenToPlayersChanges() {
       filter: `room_id=eq.${currentRoomId}`,
       schema: 'public',
       table: 'players'
-    }, () => {
-      fetchPlayers();
-    })
+    }, () => fetchPlayers())
     .subscribe();
 
   supabaseClient
@@ -675,14 +772,14 @@ async function listenToPlayersChanges() {
     }, (payload) => {
       fetchRoomRules();
 
-      if (payload.new && payload.new.status === 'PLAYING') {
+      if (payload.new?.status === 'PLAYING') {
         fetchPlayers().then(() => {
           showGameScreen();
           playBotTurnIfNeeded();
         });
       }
 
-      if (payload.new && payload.new.status === 'FINISHED') {
+      if (payload.new?.status === 'FINISHED') {
         clearInterval(timerInterval);
         const winner = playersList.find(p => p.seat_position === payload.new.winner_seat);
         showNiceAlert(`🏆 Partida terminada. Ganador: ${winner?.nickname || 'Desconocido'}`);
@@ -749,7 +846,6 @@ function renderLobbyPlayers() {
         </div>
       `;
     }
-
     container.appendChild(slotDiv);
   }
 }
