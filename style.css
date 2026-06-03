@@ -4,43 +4,39 @@ body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-.my-hand {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 12px 8px;
-  min-height: 140px;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
+/* === DOMINO TILES === */
 .ficha-domino {
   width: 72px;
   height: 128px;
-  background: linear-gradient(180deg, #fff 0%, #f5f5f5 100%);
-  border: 1px solid #111;
-  border-radius: 14px;
+  background: linear-gradient(180deg, #fff 0%, #f8f1e3 100%);
+  border: 3px solid #1f2937;
+  border-radius: 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   position: relative;
-  box-shadow: 0 5px 14px rgba(0,0,0,0.28);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35), inset 0 2px 4px rgba(255,255,255,0.6);
   cursor: grab;
   user-select: none;
   transform-origin: center center;
-  transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1), 
+              box-shadow 180ms ease, 
+              opacity 180ms ease,
+              border-color 120ms ease;
 }
 
 .ficha-domino:active {
   cursor: grabbing;
+  transform: scale(0.95) !important;
 }
 
 .ficha-domino:hover {
-  box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+  box-shadow: 0 14px 28px rgba(0,0,0,0.4);
+  border-color: #10b981;
 }
 
 .ficha-rotada {
@@ -53,6 +49,7 @@ body {
   display: block;
 }
 
+/* === SEATS & TABLE === */
 .seat {
   position: absolute;
   z-index: 30;
@@ -63,18 +60,22 @@ body {
 }
 
 .seat-label {
-  font-size: 10px;
-  font-weight: 900;
+  font-size: 11px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: #6ee7b7;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.9);
   margin-bottom: 6px;
-  max-width: 120px;
+  max-width: 130px;
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  background: rgba(16, 185, 129, 0.15);
+  padding: 2px 10px;
+  border-radius: 9999px;
+  border: 1px solid rgba(16,185,129,0.3);
 }
 
 .vertical-label {
@@ -84,116 +85,131 @@ body {
   margin-top: 6px;
 }
 
-.seat-top {
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.seat-left {
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.seat-right {
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-}
+.seat-top { top: 12px; left: 50%; transform: translateX(-50%); }
+.seat-left { left: 12px; top: 50%; transform: translateY(-50%); }
+.seat-right { right: 12px; top: 50%; transform: translateY(-50%); }
 
 .seat-hand {
   display: flex;
-  gap: 4px;
+  gap: 5px;
   align-items: center;
   justify-content: center;
   max-width: 100%;
 }
 
-.horizontal-hand {
-  flex-direction: row;
-  height: 34px;
-}
-
-.vertical-hand {
-  flex-direction: column;
-  width: 34px;
-}
+.horizontal-hand { flex-direction: row; height: 38px; }
+.vertical-hand { flex-direction: column; width: 38px; }
 
 .seat-hand .ficha-domino {
   pointer-events: none;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  border-width: 2px;
 }
 
-.horizontal-hand .ficha-domino {
-  width: 20px;
-  height: 34px;
-  border-radius: 4px;
-}
-
+.horizontal-hand .ficha-domino,
 .vertical-hand .ficha-domino {
-  width: 20px;
-  height: 34px;
-  border-radius: 4px;
+  width: 22px;
+  height: 38px;
+  border-radius: 6px;
 }
 
+/* === BOARD / MESA === */
 .board-center {
   width: 100%;
   height: 100%;
-  margin: 70px 58px 58px 58px;
+  margin: 78px 62px 62px 62px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Asegura que la zona de soltar no sea ignorada */
 .drop-zone {
   width: 100%;
   height: 100%;
-  min-height: 300px;
+  min-height: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   position: relative;
-  border: 2px dashed rgba(16,185,129,0.18);
-  border-radius: 16px;
-  background: rgba(16,185,129,0.04);
-  padding: 12px;
+  border: 3px dashed rgba(16,185,129,0.25);
+  border-radius: 20px;
+  background: rgba(16,185,129,0.035);
+  padding: 16px;
   overflow: auto;
-  pointer-events: auto; /* IMPORTANTE: Asegura que detecte el ratón */
+  pointer-events: auto;
   z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.drop-zone.drag-over {
+  background: rgba(16,185,129,0.12);
+  border-color: #10b981;
+  box-shadow: inset 0 0 0 4px rgba(16,185,129,0.15);
 }
 
 .placeholder {
   text-align: center;
-  font-size: 10px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: rgba(52, 211, 153, 0.35);
+  letter-spacing: 0.12em;
+  color: rgba(52, 211, 153, 0.4);
   pointer-events: none;
+  user-select: none;
 }
 
+/* === PLAYER COUNT & UI === */
 .player-count {
   font-size: 10px;
-  padding: 2px 6px;
+  padding: 3px 9px;
   border-radius: 9999px;
   border: 1px solid rgba(16,185,129,0.35);
-  background: rgba(6,95,70,0.28);
+  background: rgba(6,95,70,0.35);
   color: #6ee7b7;
   font-weight: 700;
   white-space: nowrap;
 }
 
+/* === ALERT === */
 #custom-alert-bg {
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
 }
 
-@media (max-width: 768px) {
-  .seat-top { top: 4px; }
-  .seat-left { left: 4px; }
-  .seat-right { right: 4px; }
-  .board-center { margin: 58px 42px 42px 42px; }
+/* === TIMER === */
+#timer-bar {
+  transition: width 1s linear, background-color 0.3s ease;
 }
+
+/* === LOBBY === */
+#lobby-players-list .seat-row {
+  transition: all 0.2s ease;
+}
+
+#lobby-players-list .seat-row:hover {
+  background-color: rgba(16,185,129,0.08);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .seat-top { top: 6px; }
+  .seat-left { left: 6px; }
+  .seat-right { right: 6px; }
+  .board-center { margin: 62px 46px 46px 46px; }
+  .ficha-domino { width: 62px; height: 110px; }
+  .my-hand { gap: 8px; }
+}
+
+/* === EXTRA POLISH === */
+.ficha-domino.played {
+  box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+  border-color: #10b981;
+}
+
+#current-turn-player {
+  transition: color 0.3s ease;
+}
+
+.team-1-3 { color: #34d399; }
+.team-2-4 { color: #f87171; }
